@@ -27,12 +27,12 @@ Package.on_use(function (api) {
     'modules/angular-meteor-methods.js',
     'modules/angular-meteor-session.js',
     // Finally load angular-meteor File
-    'urigo:angular.js'
+    'angular.js'
   ], 'client');
 });
 
 Package.onTest(function(api) {
   api.use('tinytest');
-  api.use('urigo:angular');
-  api.addFiles('urigo:angular-tests.js');
+  api.use('angular');
+  api.addFiles('angular-tests.js');
 });
