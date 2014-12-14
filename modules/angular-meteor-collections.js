@@ -1,8 +1,8 @@
 'use strict';
 var angularMeteorCollections = angular.module('angular-meteor.collections', ['angular-meteor.subscribe']);
 
-angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscribe',
-  function ($q, HashKeyCopier, $subscribe) {
+angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier',
+  function ($q, HashKeyCopier) {
     return function (collection, selector, options) {
       if (!selector) selector = {};
       if (!(collection instanceof Meteor.Collection)) {
@@ -11,12 +11,9 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
       return {
 
         bindOne: function(scope, model, id, auto, publisher) {
-          Tracker.autorun(function(self) {
+          var collectionTracker = Tracker.autorun(function() {
             scope[model] = collection.findOne(id);
             if (!scope.$root.$$phase) scope.$apply(); // Update bindings in scope.
-            scope.$on('$destroy', function () {
-              self.stop(); // Stop computation if scope is destroyed.
-            });
           });
 
           if (auto) { // Deep watches the model and performs autobind.
@@ -27,7 +24,8 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
             }, true);
           }
 
-          var deferred = $q.defer();
+          var deferred = $q.defer(),
+            publishSubscription;
 
           if (publisher) {  // Subscribe to a publish method
             var publishName = null;
@@ -36,13 +34,25 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
             else
               publishName = publisher;
 
-            $subscribe.subscribe(publishName).then(function(){
-              deferred.resolve(scope[model]);
+            publishSubscription = Meteor.subscribe(publishName, {
+              onReady: function () {
+                deferred.resolve(scope[model]);
+              },
+              onError: function (err) {
+                deferred.reject(err);
+              }
             });
 
           } else { // If no subscription, resolve immediately
             deferred.resolve(scope[model]);
           }
+
+          scope.$on('$destroy', function () {
+            collectionTracker.stop(); // Stop computation if scope is destroyed.
+            if (publishSubscription) {
+              publishSubscription.stop();
+            }
+          });
 
           return deferred.promise;
         },
@@ -54,9 +64,14 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
           }
 
           var unregisterWatch = null;
+          var collectionTracker;
 
           var rebind = function(){
-            Tracker.autorun(function (self) {
+            if (collectionTracker) {
+              collectionTracker.stop();
+            }
+
+            collectionTracker = Tracker.autorun(function () {
 
               if (paginate){
                 options = {
@@ -73,9 +88,6 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
               scope[model] = updateAngularCollection(newArray, scope[model]);
 
               if (!scope.$root.$$phase) scope.$apply(); // Update bindings in scope.
-              scope.$on('$destroy', function () {
-                self.stop(); // Stop computation if scope is destroyed.
-              });
             });
 
             if (auto) { // Deep watches the model and performs autobind.
@@ -121,13 +133,25 @@ angularMeteorCollections.factory('$collection', ['$q', 'HashKeyCopier', '$subscr
             else
               publishName = publisher;
 
-            $subscribe.subscribe(publishName).then(function(){
-              deferred.resolve(scope[model]);
+            publishSubscription = Meteor.subscribe(publishName, {
+              onReady: function () {
+                deferred.resolve(scope[model]);
+              },
+              onError: function (err) {
+                deferred.reject(err);
+              }
             });
 
           } else { // If no subscription, resolve immediately
             deferred.resolve(scope[model]);
           }
+
+          scope.$on('$destroy', function () {
+            collectionTracker.stop(); // Stop computation if scope is destroyed.
+            if (publishSubscription) {
+              publishSubscription.stop();
+            }
+          });
 
           return deferred.promise;
         }
